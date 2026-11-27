@@ -29,7 +29,7 @@ namespace GameStore.Common
         public Game()
         {
             Id = Guid.NewGuid();
-            TotalGamesCount++;
+            Interlocked.Increment(ref TotalGamesCount);
         }
 
         // конструктор з параметрами
@@ -39,7 +39,7 @@ namespace GameStore.Common
             Title = title;
             Genre = genre;
             Price = price;
-            TotalGamesCount++;
+            Interlocked.Increment(ref TotalGamesCount);
         }
 
         // метод для зміни ціни (викликає подію)
@@ -69,6 +69,19 @@ namespace GameStore.Common
         public static bool IsValidPrice(double price)
         {
             return price >= 0;
+        }
+
+        // генерація випадкової гри
+        public static Game CreateNew()
+        {
+            string[] titles = { "Horizon", "Metro", "Witcher", "Hades", "Portal", "Doom", "Hollow Knight", "Stalker" };
+            string[] genres = { "Шутер", "RPG", "Екшн", "Стратегія", "Інді", "Пригоди" };
+
+            string title = titles[Random.Shared.Next(titles.Length)] + " #" + Random.Shared.Next(1, 1000);
+            string genre = genres[Random.Shared.Next(genres.Length)];
+            double price = Random.Shared.Next(150, 2501);
+
+            return new Game(title, genre, price);
         }
     }
 }
