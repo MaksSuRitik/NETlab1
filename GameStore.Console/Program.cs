@@ -3,88 +3,80 @@ using GameStore.Common;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-Console.WriteLine("Лабораторна робота №1. Магазин ігор (GameStore)");
+Console.WriteLine("Лабораторна робота №2. Багатопотоковість, асинхронність, LINQ (GameStore)");
 Console.WriteLine();
 
-ICrudService<PcGame> pcGameService = new CrudService<PcGame>();
+string savePath = Path.Combine(AppContext.BaseDirectory, "games.json");
+ICrudServiceAsync<PcGame> gameService = new CrudServiceAsync<PcGame>(savePath);
 
-// 1. Create
-Console.WriteLine("1. Create: додаємо дві гри для ПК");
-PcGame game1 = new PcGame("S.T.A.L.K.E.R. 2", "Шутер", 1399, "Steam", 16, 160);
-PcGame game2 = new PcGame("The Witcher 3", "RPG", 729, "GOG", 8, 50);
-
-pcGameService.Create(game1);
-pcGameService.Create(game2);
-Console.WriteLine("Додано 2 гри.");
-Console.WriteLine();
-
-// 2. ReadAll
-Console.WriteLine("2. ReadAll: усі додані ігри");
-foreach (var game in pcGameService.ReadAll())
+// 1. Паралельна генерація 1200 ігор
+int count = 1200;
+Console.WriteLine($"1. Parallel.For: паралельно створюємо {count} об'єктів PcGame");
+Parallel.For(0, count, i =>
 {
-    Console.WriteLine(game.GetInfo());
+    PcGame randomGame = PcGame.CreateNew();
+    gameService.CreateAsync(randomGame).GetAwaiter().GetResult();
+});
+
+var allGames = (await gameService.ReadAllAsync()).ToList();
+Console.WriteLine($"Створено і додано в сервіс: {allGames.Count} ігор");
+Console.WriteLine();
+
+// 2. LINQ: мінімум, максимум і середнє по числових полях
+Console.WriteLine("2. LINQ: статистика по числових полях");
+Console.WriteLine($"Ціна (грн): мін = {allGames.Min(g => g.Price):F0}, макс = {allGames.Max(g => g.Price):F0}, середнє = {allGames.Average(g => g.Price):F2}");
+Console.WriteLine($"ОЗП (ГБ):   мін = {allGames.Min(g => g.MinRamGb)}, макс = {allGames.Max(g => g.MinRamGb)}, середнє = {allGames.Average(g => g.MinRamGb):F2}");
+Console.WriteLine($"Диск (ГБ):  мін = {allGames.Min(g => g.DiskSizeGb):F0}, макс = {allGames.Max(g => g.DiskSizeGb):F0}, середнє = {allGames.Average(g => g.DiskSizeGb):F2}");
+Console.WriteLine();
+
+// 3. Пагінація
+Console.WriteLine("3. Пагінація ReadAllAsync(page: 1, amount: 3)");
+var firstPage = await gameService.ReadAllAsync(1, 3);
+foreach (var game in firstPage)
+{
+    Console.WriteLine("  " + game.GetInfo());
 }
 Console.WriteLine();
 
-// 3. Read
-Console.WriteLine("3. Read: пошук першої гри за Id");
-PcGame foundGame = pcGameService.Read(game1.Id);
-if (foundGame != null)
+// 4. Перевірка IEnumerable (foreach напряму по сервісу)
+Console.WriteLine("4. IEnumerable: підрахунок ігор дешевше 500 грн через foreach");
+int cheapCount = 0;
+foreach (var game in gameService)
 {
-    Console.WriteLine(foundGame.GetInfo());
+    if (game.Price < 500)
+    {
+        cheapCount++;
+    }
 }
+Console.WriteLine($"Ігор дешевше 500 грн: {cheapCount}");
 Console.WriteLine();
 
-// 4. Update
-Console.WriteLine("4. Update: змінюємо платформу та ціну першої гри");
-game1.Platform = "Epic Games";
-game1.Price = 1199;
-pcGameService.Update(game1);
-
-PcGame updatedGame = pcGameService.Read(game1.Id);
-Console.WriteLine(updatedGame.GetInfo());
+// 5. Асинхронні ReadAsync, UpdateAsync, RemoveAsync
+Console.WriteLine("5. Перевірка ReadAsync, UpdateAsync, RemoveAsync");
+PcGame sample = allGames[0];
+PcGame found = await gameService.ReadAsync(sample.Id);
+found.Price = 999;
+bool updated = await gameService.UpdateAsync(found);
+bool removed = await gameService.RemoveAsync(allGames[1]);
+Console.WriteLine($"Оновлено першу гру: {(updated ? "так" : "ні")}, нова ціна: {(await gameService.ReadAsync(sample.Id)).Price} грн");
+Console.WriteLine($"Видалено другу гру: {(removed ? "так" : "ні")}, залишилось у сервісі: {(await gameService.ReadAllAsync()).Count()}");
 Console.WriteLine();
 
-// 5. Remove
-Console.WriteLine("5. Remove: видаляємо другу гру");
-pcGameService.Remove(game2);
-foreach (var game in pcGameService.ReadAll())
-{
-    Console.WriteLine(game.GetInfo());
-}
+// 6. Асинхронне збереження у файл
+Console.WriteLine("6. SaveAsync: зберігаємо колекцію у файл");
+bool saved = await gameService.SaveAsync();
+var fileInfo = new FileInfo(savePath);
+Console.WriteLine($"Збережено: {(saved ? "так" : "ні")}, файл: {fileInfo.Name} ({fileInfo.Length / 1024} КБ)");
 Console.WriteLine();
 
-// 6. Той самий CRUD-сервіс для іншого типу (Order)
-Console.WriteLine("6. CRUD-сервіс для замовлень (Order)");
-ICrudService<Order> orderService = new CrudService<Order>();
-Order order1 = new Order("Максим", 1199);
-orderService.Create(order1);
-foreach (var order in orderService.ReadAll())
-{
-    Console.WriteLine(order.GetOrderInfo());
-}
+// 7. Приклади CreateNew для інших класів
+Console.WriteLine("7. Статичні CreateNew() для ConsoleGame та Order");
+Console.WriteLine("  " + ConsoleGame.CreateNew().GetInfo());
+Console.WriteLine("  " + Order.CreateNew().GetOrderInfo());
 Console.WriteLine();
 
-// 7. Наслідування
-Console.WriteLine("7. Наслідування: консольна гра як Game");
-Game consoleGame = new ConsoleGame("God of War Ragnarok", "Екшн", 1999, "PS5", true, 1);
-Console.WriteLine(consoleGame.GetInfo());
-Console.WriteLine();
-
-// 8. Делегат і подія
-Console.WriteLine("8. Делегат і подія: зміна ціни на гру");
-game1.OnPriceChanged += ShowPriceChange;
-game1.ChangePrice(999);
-Console.WriteLine();
-
-// 9. Статичне поле, статичний метод і метод розширення
-Console.WriteLine("9. Статика і метод розширення");
-Console.WriteLine("Всього створено ігор: " + Game.TotalGamesCount);
-Console.WriteLine("Ціна 500 коректна: " + (Game.IsValidPrice(500) ? "так" : "ні"));
-Console.WriteLine("Ціна -100 коректна: " + (Game.IsValidPrice(-100) ? "так" : "ні"));
-Console.WriteLine("Короткий тег: " + consoleGame.ToShortTag());
-
-void ShowPriceChange(string title, double oldPrice, double newPrice)
-{
-    Console.WriteLine($"Подія: ціна на \"{title}\" змінилась з {oldPrice} на {newPrice} {Game.Currency}");
-}
+// 8. Примітиви синхронізації
+Console.WriteLine("8. Примітиви синхронізації (lock, Semaphore, AutoResetEvent)");
+SyncExamples.RunLockExample();
+SyncExamples.RunSemaphoreExample();
+SyncExamples.RunAutoResetEventExample();

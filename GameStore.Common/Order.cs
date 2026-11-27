@@ -29,5 +29,16 @@ namespace GameStore.Common
         {
             return $"Покупець: {CustomerName}, сума: {TotalPrice} {Game.Currency}, дата: {OrderDate:dd.MM.yyyy}";
         }
+
+        // генерація випадкового замовлення
+        public static Order CreateNew()
+        {
+            string[] customers = { "Максим", "Олег", "Ірина", "Дмитро", "Анна", "Богдан" };
+
+            string customer = customers[Random.Shared.Next(customers.Length)];
+            double total = Random.Shared.Next(300, 5001);
+
+            return new Order(customer, total);
+        }
     }
 }

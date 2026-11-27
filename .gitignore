@@ -46,3 +46,6 @@ bld/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Generated runtime data files
+games.json
